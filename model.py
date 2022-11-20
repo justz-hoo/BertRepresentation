@@ -6,8 +6,7 @@ import torch.utils.data as torchdata
 
 
 class TextModel(nn.Module):
-    def __init__(self, output_length = 32, batch_size = 128,
-                 config_path='bert-base-chinese/config.json',
+    def __init__(self, config_path='bert-base-chinese/config.json',
                  model_path='bert-base-chinese/pytorch_model.bin'):
         super(TextModel, self).__init__()
         model_config = BertConfig.from_pretrained(config_path)
@@ -23,6 +22,7 @@ class TextModel(nn.Module):
                                      token_type_ids=segments,
                                      attention_mask=input_masks)
         text_embeddings = outputs[0][:, 0, :]
+        # outputs[0] [batch size, sequence length, hidden_dimension]
         # features = self.fc(text_embeddings)
         # features = self.tanh(features)
         return text_embeddings

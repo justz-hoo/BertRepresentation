@@ -20,8 +20,8 @@ def process(input_text):
     return new_sentence
 
 
-def read_data(args):
-    file = open(args.data_dir, 'r', encoding='utf-8')
+def read_data(filepath):
+    file = open(filepath, 'r', encoding='utf-8')
     rows = file.readlines()[1:]
     tags_list = []
     ids_list = []
@@ -44,13 +44,12 @@ def read_data(args):
 def get_tokens(texts, tokenizer):
     tokens, segments, input_masks = [], [], []
     for text in texts:
-        indexed_tokens = tokenizer.encode(text)
-        tmp_tokenized_text = tokenizer.convert_ids_to_tokens(indexed_tokens)
+        tokenized_text = tokenizer.tokenize(text)
+        indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
         tokens.append(indexed_tokens)
         segments.append([0]*len(indexed_tokens))
         input_masks.append([1]*len(indexed_tokens))
     max_len = max(set(len(single) for single in tokens))
-
     for i in range(len(tokens)):
         padding = [0]*(max_len-len(tokens[i]))
         tokens[i] += padding
@@ -60,12 +59,13 @@ def get_tokens(texts, tokenizer):
     tokens_tensor = torch.tensor(tokens)
     segments_tensor = torch.tensor(segments)
     input_masks_tensor = torch.tensor(input_masks)
+    return tokens_tensor.cuda(), segments_tensor.cuda(), input_masks_tensor.cuda()
 
 
 class MyDataset(torchdata.Dataset):
     def __init__(self, args):
         self.args = args
-        self.texts, self.ids = read_data(self.args)
+        self.texts, self.ids = read_data(self.args.data_dir)
 
     def __len__(self):
         return len(self.ids)

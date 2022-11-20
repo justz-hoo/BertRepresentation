@@ -1,10 +1,14 @@
 import os
+
+import numpy as np
+
 from model import TextModel
 from transformers import BertTokenizer, BertConfig
 import torch
 import torch.utils.data as torchdata
 import argparse
 from utils import *
+from tqdm import tqdm
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 use_cuda = torch.cuda.is_available()
@@ -12,55 +16,52 @@ use_cuda = torch.cuda.is_available()
 
 def get_args():
     parser = argparse.ArgumentParser(description='Bert representation')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    # parser.add_argument('--root_dir', type=str, default='/home/zhuyuejia/Code/BERT')
+    parser.add_argument('--batch_size', type=int, default=7, help='batch size')
     parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs')
     # @TODO:处理出现频次高于10次的songs,现在用1000首代替
     parser.add_argument('--data_dir', type=str, default='./data/songs_1000.csv')
+    parser.add_argument('--write_dir', type=str, default='./data/')
     my_args = parser.parse_args()
 
     return my_args
 
 
-def test(args, epoch):
+def extract_embedding(my_args):
     textNet.eval()
+    final_embedding = np.zeros((dataset.__len__(), 768), dtype=float)
+    id_seq = np.zeros(dataset.__len__())
+    id_num = 0
+    for batch_idx, (texts, ids) in enumerate(dataloader):
+        tokenizer = BertTokenizer.from_pretrained('./bert-base-chinese/vocab.txt')
+        tokens, segments, input_masks = get_tokens(texts=texts, tokenizer=tokenizer)
+        features = textNet(tokens, segments, input_masks)  # features在GPU上
+        features_numpy = features.data.cpu().numpy()
+        final_embedding[id_num: id_num + ids.shape[0]] = features_numpy
+        id_seq[id_num: id_num + ids.shape[0]] = ids
+        id_num += ids.shape[0]
+    return final_embedding, id_seq
 
-# def tmp():
-#     args = get_args()
-#     texts, ids = read_data(args=args)  # string, int
+
+def write(embeddings, ids):
+    filepath_emb = os.path.join(args.write_dir, 'Bert_embedding')
+    filepath_ids = os.path.join(args.write_dir, 'ids')
+    np.save(filepath_emb, embeddings)
+    np.save(filepath_ids, ids)
+    # read(filepath_emb+'.npy')
+    # read(filepath_ids+'.npy')
+
+
+def read(path):
+    data = np.load(path)
+    print(data)
+
 
 if __name__ == '__main__':
-    texts = ["我今天想睡觉", "fufu是一只可爱的猫猫"]
-    texts = texts*100000
-    # @ TODO: 重写dataloader
-    # dataloader = torchdata.DataLoader(texts, batch_size=64, shuffle=False)
     args = get_args()
-    tokenizer = BertTokenizer.from_pretrained('./bert-base-chinese/vocab.txt')
-    textNet = TextModel(batch_size=args.batch_size)
+    # @ TODO: 重写dataloader
+    dataset = MyDataset(args=args)
+    dataloader = torchdata.DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+    textNet = TextModel()
     textNet.cuda()
-
-    for epoch in range(args.num_epochs):
-        test(args, epoch)
-
-    tokens, segments, input_masks = [], [], []
-    for text in texts:
-        indexed_tokens = tokenizer.encode(text)
-        tmp_tokenized_text = tokenizer.convert_ids_to_tokens(indexed_tokens)
-        tokens.append(indexed_tokens)
-        segments.append([0]*len(indexed_tokens))
-        input_masks.append([1]*len(indexed_tokens))
-    max_len = max(set(len(single) for single in tokens))
-
-    for i in range(len(tokens)):
-        padding = [0]*(max_len-len(tokens[i]))
-        tokens[i] += padding
-        segments[i] += padding  # 一个输入只有一个句子
-        input_masks[i] += padding
-
-    tokens_tensor = torch.tensor(tokens)
-    segments_tensor = torch.tensor(segments)
-    input_masks_tensor = torch.tensor(input_masks)
-
-    text_hashCodes = textNet(tokens_tensor, segments_tensor, input_masks_tensor)
-    print(text_hashCodes)
-    print(text_hashCodes.shape)
+    embedding_seqs, id_seqs = extract_embedding(args)
+    write(embedding_seqs, id_seqs)
