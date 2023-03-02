@@ -20,7 +20,6 @@ def get_args():
     parser.add_argument('--write_dir', type=str, default='./kgrec_songs/Embedding',
                         help='写歌曲的情感向量信息，存储为向量形式')
     my_args = parser.parse_args()
-
     return my_args
 
 
@@ -38,22 +37,22 @@ def extract_embedding():
         id_seq[id_num: id_num + ids.shape[0]] = ids
         id_num += ids.shape[0]
     print(id_num)
+    embedding_with_id = np.concatenate((id_seq.reshape(8640, 1), final_embedding), axis=1)
+    return final_embedding, id_seq, embedding_with_id
 
-    return final_embedding, id_seq
 
-
-def write(embeddings, ids):
-    filepath_emb = os.path.join(args.write_dir, 'Bert_embedding_v2')
-    filepath_ids = os.path.join(args.write_dir, 'ids_v2')
+def write(embeddings, ids, embedding_with_id):
+    filepath_emb = os.path.join(args.write_dir, 'pure_embedding')
+    filepath_ids = os.path.join(args.write_dir, 'idx')
+    filepath_emb_id = os.path.join(args.write_dir, 'embedding')
     np.save(filepath_emb, embeddings)
     np.save(filepath_ids, ids)
-    # read(filepath_emb+'.npy')
-    # read(filepath_ids+'.npy')
+    np.save(filepath_emb_id, embedding_with_id)
 
 
 def read(path):
     data = np.load(path)
-    print(len(data))
+    return data
 
 
 if __name__ == '__main__':
@@ -63,7 +62,11 @@ if __name__ == '__main__':
     textNet = TextModel(config_path='./bert-base-uncased/config.json',
                         model_path='./bert-base-uncased/pytorch_model.bin')
     textNet.cuda()
-    embedding_seqs, id_seqs = extract_embedding()
-    write(embedding_seqs, id_seqs)
+    embedding_seqs, id_seqs, embedding_with_id = extract_embedding()
+    write(embedding_seqs, id_seqs, embedding_with_id)
 
-    # read(os.path.join(args.write_dir, 'ids') + '.npy')
+    # idx = read(os.path.join(args.write_dir, 'ids_v2') + '.npy')
+    # pure_embedding = read(os.path.join(args.write_dir, 'Bert_embedding_v2') + '.npy')
+    # embedding_with_idx = read(os.path.join(args.write_dir, 'embedding' + '.npy'))
+
+    print('finished')
